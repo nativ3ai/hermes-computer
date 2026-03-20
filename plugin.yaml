@@ -1,0 +1,15 @@
+name: hermes-computer
+version: 0.1.0
+description: macOS desktop control tools for Hermes Agent
+author: nativ3ai
+provides_tools:
+  - computer_status
+  - computer_list_windows
+  - computer_focus_window
+  - computer_capture_screen
+  - computer_snapshot_ui
+  - computer_click_element
+  - computer_click_at
+  - computer_type_text
+  - computer_press_keys
+  - computer_open_application

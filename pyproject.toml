@@ -1,0 +1,33 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "hermes-computer"
+version = "0.1.0"
+description = "macOS desktop control daemon and Hermes plugin for local computer use"
+readme = "README.md"
+authors = [{name = "nativ3ai"}]
+requires-python = ">=3.10"
+dependencies = [
+  "fastapi>=0.116,<1",
+  "uvicorn[standard]>=0.35,<1",
+  "pydantic>=2.8,<3",
+  "requests>=2.32,<3",
+  "httpx>=0.28,<1",
+  "pyyaml>=6.0,<7",
+  "typer>=0.16,<1",
+  "pyobjc-framework-ApplicationServices>=10.3; sys_platform == 'darwin'",
+  "pyobjc-framework-Quartz>=10.3; sys_platform == 'darwin'",
+  "pyobjc-framework-Cocoa>=10.3; sys_platform == 'darwin'",
+]
+
+[project.scripts]
+hermes-computer = "hermes_computer.cli:main"
+
+[tool.setuptools]
+include-package-data = true
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["hermes_computer*"]

@@ -1,0 +1,12 @@
+fastapi<1,>=0.116
+uvicorn[standard]<1,>=0.35
+pydantic<3,>=2.8
+requests<3,>=2.32
+httpx<1,>=0.28
+pyyaml<7,>=6.0
+typer<1,>=0.16
+
+[:sys_platform == "darwin"]
+pyobjc-framework-ApplicationServices>=10.3
+pyobjc-framework-Quartz>=10.3
+pyobjc-framework-Cocoa>=10.3

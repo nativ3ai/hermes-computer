@@ -1,0 +1,2 @@
+[console_scripts]
+hermes-computer = hermes_computer.cli:main
