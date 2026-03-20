@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import json
 import platform
-import subprocess
 import time
 from pathlib import Path
 from typing import Any
@@ -12,11 +11,21 @@ from ..models import ComputerStatus, PermissionStatus, UIElement, UISnapshot, Wi
 
 try:
     from Cocoa import NSWorkspace
+    from AppKit import NSBitmapImageRep, NSJPEGFileType, NSPNGFileType
     from Quartz import (
         CGEventCreateMouseEvent,
+        CGEventCreateKeyboardEvent,
+        CGEventKeyboardSetUnicodeString,
         CGEventPost,
+        CGEventSetFlags,
+        CGDisplayCreateImage,
+        CGMainDisplayID,
         CGWindowListCopyWindowInfo,
         CGPointMake,
+        kCGEventFlagMaskAlternate,
+        kCGEventFlagMaskCommand,
+        kCGEventFlagMaskControl,
+        kCGEventFlagMaskShift,
         kCGEventLeftMouseDown,
         kCGEventLeftMouseUp,
         kCGEventMouseMoved,
@@ -56,9 +65,53 @@ except Exception:  # pragma: no cover - handled by doctor/status
     NSWorkspace = None
     Quartz = None
 
-
-APPLE_SCRIPT_TIMEOUT = 8
 KEY_CODE_MAP = {
+    "a": 0,
+    "s": 1,
+    "d": 2,
+    "f": 3,
+    "h": 4,
+    "g": 5,
+    "z": 6,
+    "x": 7,
+    "c": 8,
+    "v": 9,
+    "b": 11,
+    "q": 12,
+    "w": 13,
+    "e": 14,
+    "r": 15,
+    "y": 16,
+    "t": 17,
+    "1": 18,
+    "2": 19,
+    "3": 20,
+    "4": 21,
+    "6": 22,
+    "5": 23,
+    "=": 24,
+    "9": 25,
+    "7": 26,
+    "-": 27,
+    "8": 28,
+    "0": 29,
+    "]": 30,
+    "o": 31,
+    "u": 32,
+    "[": 33,
+    "i": 34,
+    "p": 35,
+    "l": 37,
+    "j": 38,
+    "'": 39,
+    "k": 40,
+    ";": 41,
+    "\\": 42,
+    ",": 43,
+    "/": 44,
+    "n": 45,
+    "m": 46,
+    ".": 47,
     "enter": 36,
     "return": 36,
     "tab": 48,
@@ -73,13 +126,13 @@ KEY_CODE_MAP = {
     "right": 124,
 }
 MODIFIER_FLAGS = {
-    "command": "command",
-    "cmd": "command",
-    "shift": "shift",
-    "control": "control",
-    "ctrl": "control",
-    "option": "option",
-    "alt": "option",
+    "command": kCGEventFlagMaskCommand if Quartz else 0,
+    "cmd": kCGEventFlagMaskCommand if Quartz else 0,
+    "shift": kCGEventFlagMaskShift if Quartz else 0,
+    "control": kCGEventFlagMaskControl if Quartz else 0,
+    "ctrl": kCGEventFlagMaskControl if Quartz else 0,
+    "option": kCGEventFlagMaskAlternate if Quartz else 0,
+    "alt": kCGEventFlagMaskAlternate if Quartz else 0,
 }
 
 
@@ -182,18 +235,25 @@ class MacComputerBackend:
 
     def open_application(self, app_name: str) -> dict[str, Any]:
         self._require_supported()
-        script = f'tell application {json.dumps(app_name)} to activate'
-        self._run_osascript(script)
+        ok = NSWorkspace.sharedWorkspace().launchApplication_(app_name)
+        if not ok:
+            raise DesktopControlError(f"Unable to activate application: {app_name}")
         time.sleep(0.15)
         return {"app_name": app_name}
 
     def capture_screen(self, *, display: int = 1, fmt: str = "png") -> dict[str, Any]:
         self._require_supported()
         path = self.config.capture_dir / f"capture-{int(time.time() * 1000)}.{fmt}"
-        cmd = ["screencapture", "-x", "-D", str(display), str(path)]
-        proc = subprocess.run(cmd, capture_output=True, text=True)
-        if proc.returncode != 0:
-            raise DesktopControlError(proc.stderr.strip() or "screencapture failed")
+        image = CGDisplayCreateImage(CGMainDisplayID())
+        if image is None:
+            raise DesktopControlError("CGDisplayCreateImage failed")
+        bitmap = NSBitmapImageRep.alloc().initWithCGImage_(image)
+        file_type = NSPNGFileType if fmt == "png" else NSJPEGFileType
+        data = bitmap.representationUsingType_properties_(file_type, None)
+        if data is None:
+            raise DesktopControlError("Unable to encode screenshot data")
+        if not data.writeToFile_atomically_(str(path), True):
+            raise DesktopControlError("Unable to write screenshot file")
         return {"path": str(path), "display": display, "format": fmt, "bytes": path.stat().st_size}
 
     def snapshot_ui(self, *, depth: int = 3, max_nodes: int = 160) -> UISnapshot:
@@ -242,8 +302,9 @@ class MacComputerBackend:
 
     def type_text(self, text: str) -> dict[str, Any]:
         self._require_accessibility()
-        script = f'tell application "System Events" to keystroke {json.dumps(text)}'
-        self._run_osascript(script)
+        for char in text:
+            self._post_unicode_keypress(char)
+            time.sleep(0.004)
         return {"text": text, "chars": len(text)}
 
     def press_keys(self, keys: list[str]) -> dict[str, Any]:
@@ -404,13 +465,6 @@ class MacComputerBackend:
             raise DesktopControlError("Unable to determine the frontmost application")
         return str(app.localizedName()), int(app.processIdentifier())
 
-    @staticmethod
-    def _run_osascript(script: str) -> str:
-        proc = subprocess.run(["osascript", "-e", script], capture_output=True, text=True, timeout=APPLE_SCRIPT_TIMEOUT)
-        if proc.returncode != 0:
-            raise DesktopControlError(proc.stderr.strip() or proc.stdout.strip() or "osascript failed")
-        return proc.stdout.strip()
-
     def _post_click(self, x: float, y: float, *, button: str, click_count: int) -> None:
         point = CGPointMake(float(x), float(y))
         CGEventPost(kCGHIDEventTap, CGEventCreateMouseEvent(None, kCGEventMouseMoved, point, 0))
@@ -422,27 +476,27 @@ class MacComputerBackend:
             time.sleep(0.04)
 
     def _post_keypress(self, key: str, modifiers: list[str]) -> None:
-        if len(key) == 1:
-            if modifiers:
-                using = ", ".join(f"{modifier} down" for modifier in modifiers)
-                script = (
-                    'tell application "System Events" '
-                    f'to keystroke {json.dumps(key)} using {{{using}}}'
-                )
-                self._run_osascript(script)
-                return
-            script = f'tell application "System Events" to keystroke {json.dumps(key)}'
-            self._run_osascript(script)
-            return
-        else:
-            if key not in KEY_CODE_MAP:
-                raise DesktopControlError(f"Unsupported special key: {key}")
-            keycode = KEY_CODE_MAP[key]
-            using = ""
-            if modifiers:
-                using = " using {" + ", ".join(f"{modifier} down" for modifier in modifiers) + "}"
-            script = f'tell application "System Events" to key code {keycode}{using}'
-            self._run_osascript(script)
+        if key not in KEY_CODE_MAP:
+            raise DesktopControlError(f"Unsupported key: {key}")
+        keycode = KEY_CODE_MAP[key]
+        down = CGEventCreateKeyboardEvent(None, keycode, True)
+        up = CGEventCreateKeyboardEvent(None, keycode, False)
+        flags = 0
+        for modifier in modifiers:
+            flags |= MODIFIER_FLAGS[modifier]
+        if flags:
+            CGEventSetFlags(down, flags)
+            CGEventSetFlags(up, flags)
+        CGEventPost(kCGHIDEventTap, down)
+        CGEventPost(kCGHIDEventTap, up)
+
+    def _post_unicode_keypress(self, char: str) -> None:
+        down = CGEventCreateKeyboardEvent(None, 0, True)
+        up = CGEventCreateKeyboardEvent(None, 0, False)
+        CGEventKeyboardSetUnicodeString(down, len(char), char)
+        CGEventKeyboardSetUnicodeString(up, len(char), char)
+        CGEventPost(kCGHIDEventTap, down)
+        CGEventPost(kCGHIDEventTap, up)
 
     def _require_supported(self) -> None:
         if not self.supported():

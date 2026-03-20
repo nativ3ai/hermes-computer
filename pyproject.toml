@@ -22,6 +22,11 @@ dependencies = [
   "pyobjc-framework-Cocoa>=10.3; sys_platform == 'darwin'",
 ]
 
+[project.optional-dependencies]
+app = [
+  "pyinstaller>=6.19,<7",
+]
+
 [project.scripts]
 hermes-computer = "hermes_computer.cli:main"
 

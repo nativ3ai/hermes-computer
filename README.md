@@ -2,7 +2,7 @@
 
 Hermes Computer is a standalone macOS-first add-on for Hermes Agent. It combines:
 
-- a local desktop-control daemon with macOS permissions
+- a native macOS app wrapper that owns permissions and runs the local daemon
 - a Hermes plugin that exposes computer-use tools
 - a bundled skill that teaches Hermes how to operate the desktop safely
 
@@ -40,14 +40,36 @@ cd hermes-computer
 python3 -m venv .venv
 source .venv/bin/activate
 pip install -e .
-hermes-computer bootstrap
+pip install '.[app]'
+hermes-computer install-plugin
+hermes-computer build-app
+hermes-computer install-app
+hermes-computer open-app
 ```
 
-`bootstrap` does three things:
+The app is now the preferred runtime. It owns the permission prompts and runs the local daemon inside the app process.
 
-1. installs the plugin into `~/.hermes/plugins/hermes-computer`
-2. installs the bundled skill into `~/.hermes/skills/productivity/hermes-computer`
-3. starts the local daemon and prompts for permissions if needed
+If you want the old developer-only path, you can still run:
+
+```bash
+hermes-computer start-daemon
+```
+
+### Quick bootstrap
+
+```bash
+hermes-computer bootstrap --prefer-app
+```
+
+That installs the plugin + skill, runs diagnostics, and opens the installed app if present.
+
+If you do not have the app built yet, run:
+
+```bash
+pip install '.[app]'
+hermes-computer build-app
+hermes-computer install-app
+```
 
 ## Required macOS permissions
 
@@ -97,6 +119,9 @@ That is the same operational philosophy you want for reliable desktop agents.
 ```bash
 hermes-computer doctor
 hermes-computer bootstrap
+hermes-computer build-app
+hermes-computer install-app
+hermes-computer open-app
 hermes-computer start-daemon
 hermes-computer stop-daemon
 hermes-computer status
@@ -128,6 +153,7 @@ A live smoke test on macOS should additionally confirm:
 ## Repo contents
 
 - `hermes_computer/daemon/` — local FastAPI daemon
+- `hermes_computer/macapp.py` — native macOS app wrapper
 - `hermes_computer/mac/` — macOS backend
 - `hermes_computer/plugin.py` — Hermes plugin registration
 - `skill/hermes-computer/` — bundled skill

@@ -2,16 +2,20 @@
 
 ## First run
 
-1. Install and bootstrap:
+1. Install the repo and build the app:
 
 ```bash
 python3 -m venv .venv
 source .venv/bin/activate
 pip install -e .
-hermes-computer bootstrap
+pip install '.[app]'
+hermes-computer install-plugin
+hermes-computer build-app
+hermes-computer install-app
+hermes-computer open-app
 ```
 
-2. Grant macOS privacy permissions when prompted:
+2. Grant macOS privacy permissions when the app opens:
 
 - Accessibility
 - Screen Recording
@@ -47,7 +51,7 @@ Use `computer_click_at` only if accessibility targeting is not enough.
 If Hermes reports that the daemon is unavailable:
 
 ```bash
-hermes-computer start-daemon
+hermes-computer open-app
 ```
 
 If Hermes reports missing permissions:

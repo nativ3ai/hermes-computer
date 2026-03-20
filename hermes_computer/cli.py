@@ -105,11 +105,17 @@ def bootstrap(
     hermes_home: str = typer.Option(None, help="Override Hermes home, defaults to ~/.hermes"),
     start: bool = typer.Option(True, help="Start the daemon after installing the plugin."),
     prompt_permissions: bool = typer.Option(True, help="Prompt for Accessibility permissions during doctor."),
+    prefer_app: bool = typer.Option(False, help="If available, open the installed macOS app instead of only starting the CLI daemon."),
 ) -> None:
     if hermes_home:
         os.environ["HERMES_HOME"] = hermes_home
     install_plugin(hermes_home=hermes_home)
     doctor(prompt=prompt_permissions)
+    if prefer_app:
+        app_path = _installed_app_path()
+        if app_path.exists():
+            subprocess.run(["open", str(app_path)], check=False)
+            raise typer.Exit(0)
     if start:
         start_daemon(background=True)
 
@@ -121,8 +127,70 @@ def open_privacy_settings() -> None:
     typer.echo("opened")
 
 
+@app.command("build-app")
+def build_app(clean: bool = typer.Option(True, help="Remove previous build/dist directories before packaging.")) -> None:
+    repo_root = _repo_root()
+    if clean:
+        shutil.rmtree(repo_root / "build", ignore_errors=True)
+        shutil.rmtree(repo_root / "dist", ignore_errors=True)
+    cmd = [
+        sys.executable,
+        "-m",
+        "PyInstaller",
+        "--name",
+        "Hermes Computer",
+        "--windowed",
+        "--noconfirm",
+        "--hidden-import",
+        "AppKit",
+        "--hidden-import",
+        "Foundation",
+        "--hidden-import",
+        "Quartz",
+        "--hidden-import",
+        "ApplicationServices",
+        "scripts/hermes_computer_app.py",
+    ]
+    subprocess.run(cmd, cwd=repo_root, check=True)
+    app_path = _built_app_path()
+    typer.echo(json.dumps({"ok": app_path.exists(), "app": str(app_path)}, indent=2))
+
+
+@app.command("install-app")
+def install_app(build_if_missing: bool = typer.Option(True, help="Build the app first if no local dist app exists.")) -> None:
+    app_path = _built_app_path()
+    if not app_path.exists():
+        if not build_if_missing:
+            raise typer.BadParameter("No built app found. Run `hermes-computer build-app` first.")
+        build_app(clean=True)
+        app_path = _built_app_path()
+    target = _installed_app_path()
+    target.parent.mkdir(parents=True, exist_ok=True)
+    if target.exists():
+        shutil.rmtree(target)
+    shutil.copytree(app_path, target)
+    typer.echo(json.dumps({"ok": True, "installed_app": str(target)}, indent=2))
+
+
+@app.command("open-app")
+def open_app(installed: bool = typer.Option(True, help="Open the installed app from ~/Applications if present.")) -> None:
+    target = _installed_app_path() if installed else _built_app_path()
+    if not target.exists():
+        raise typer.BadParameter(f"App not found at {target}.")
+    subprocess.run(["open", str(target)], check=False)
+    typer.echo(str(target))
+
+
 def _repo_root() -> Path:
     return Path(__file__).resolve().parents[1]
+
+
+def _built_app_path() -> Path:
+    return _repo_root() / "dist" / "Hermes Computer.app"
+
+
+def _installed_app_path() -> Path:
+    return Path.home() / "Applications" / "Hermes Computer.app"
 
 
 def _install_plugin_tree(config) -> None:
