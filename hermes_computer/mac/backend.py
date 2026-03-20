@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import platform
+import sys
 import time
 from pathlib import Path
 from typing import Any
@@ -11,6 +12,7 @@ from ..models import ComputerStatus, PermissionStatus, UIElement, UISnapshot, Wi
 
 try:
     from Cocoa import NSWorkspace
+    from AppKit import NSRunningApplication, NSApplicationActivateIgnoringOtherApps
     from AppKit import NSBitmapImageRep, NSJPEGFileType, NSPNGFileType
     from Quartz import (
         CGEventCreateMouseEvent,
@@ -158,11 +160,18 @@ class MacComputerBackend:
         options = {kAXTrustedCheckOptionPrompt: bool(prompt)} if prompt else None
         trusted = bool(AXIsProcessTrustedWithOptions(options))
         screen_capture_available = self._probe_screen_capture()
+        executable = Path(sys.executable).resolve()
         issues: list[str] = []
         if not trusted:
-            issues.append("Grant Accessibility access to the daemon interpreter in System Settings > Privacy & Security > Accessibility.")
+            issues.append(
+                "Grant Accessibility access in System Settings > Privacy & Security > Accessibility for "
+                f"{executable}."
+            )
         if not screen_capture_available:
-            issues.append("Grant Screen Recording access in System Settings > Privacy & Security > Screen Recording.")
+            issues.append(
+                "Grant Screen Recording access in System Settings > Privacy & Security > Screen Recording for "
+                f"{executable}."
+            )
         detail = " ".join(issues) if issues else None
         return PermissionStatus(
             accessibility_trusted=trusted,
@@ -230,7 +239,7 @@ class MacComputerBackend:
                 break
         if target is None:
             raise DesktopControlError("No matching window found")
-        self.open_application(target.owner_name)
+        self._activate_pid(target.owner_pid)
         return {"window_id": target.window_id, "owner_name": target.owner_name, "title": target.title}
 
     def open_application(self, app_name: str) -> dict[str, Any]:
@@ -238,6 +247,9 @@ class MacComputerBackend:
         ok = NSWorkspace.sharedWorkspace().launchApplication_(app_name)
         if not ok:
             raise DesktopControlError(f"Unable to activate application: {app_name}")
+        activated = self._activate_named_application(app_name)
+        if not activated:
+            raise DesktopControlError(f"Launched {app_name} but could not activate it")
         time.sleep(0.15)
         return {"app_name": app_name}
 
@@ -422,8 +434,7 @@ class MacComputerBackend:
             return None
         if AXValueGetType(value) != kAXValueCGPointType:
             return None
-        point = Quartz.CGPoint()
-        ok = AXValueGetValue(value, kAXValueCGPointType, point)
+        ok, point = AXValueGetValue(value, kAXValueCGPointType, None)
         if not ok:
             return None
         return {"x": float(point.x), "y": float(point.y)}
@@ -435,8 +446,7 @@ class MacComputerBackend:
             return None
         if AXValueGetType(value) != kAXValueCGSizeType:
             return None
-        size = Quartz.CGSize()
-        ok = AXValueGetValue(value, kAXValueCGSizeType, size)
+        ok, size = AXValueGetValue(value, kAXValueCGSizeType, None)
         if not ok:
             return None
         return {"width": float(size.width), "height": float(size.height)}
@@ -464,6 +474,21 @@ class MacComputerBackend:
         if app is None:
             raise DesktopControlError("Unable to determine the frontmost application")
         return str(app.localizedName()), int(app.processIdentifier())
+
+    @staticmethod
+    def _activate_pid(pid: int) -> bool:
+        app = NSRunningApplication.runningApplicationWithProcessIdentifier_(pid)
+        if app is None:
+            return False
+        return bool(app.activateWithOptions_(NSApplicationActivateIgnoringOtherApps))
+
+    @staticmethod
+    def _activate_named_application(app_name: str) -> bool:
+        running = NSWorkspace.sharedWorkspace().runningApplications() or []
+        matches = [app for app in running if str(app.localizedName() or "") == app_name]
+        if not matches:
+            return False
+        return bool(matches[0].activateWithOptions_(NSApplicationActivateIgnoringOtherApps))
 
     def _post_click(self, x: float, y: float, *, button: str, click_count: int) -> None:
         point = CGPointMake(float(x), float(y))

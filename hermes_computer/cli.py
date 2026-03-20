@@ -141,6 +141,12 @@ def build_app(clean: bool = typer.Option(True, help="Remove previous build/dist 
         "Hermes Computer",
         "--windowed",
         "--noconfirm",
+        "--add-data",
+        "plugin.yaml:.",
+        "--add-data",
+        "hermes_computer:hermes_computer",
+        "--add-data",
+        "skill:skill",
         "--hidden-import",
         "AppKit",
         "--hidden-import",
@@ -182,6 +188,8 @@ def open_app(installed: bool = typer.Option(True, help="Open the installed app f
 
 
 def _repo_root() -> Path:
+    if getattr(sys, "frozen", False):
+        return Path(getattr(sys, "_MEIPASS")).resolve()
     return Path(__file__).resolve().parents[1]
 
 

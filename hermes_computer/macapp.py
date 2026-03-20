@@ -33,6 +33,8 @@ from .config import get_config
 from .daemon.server import create_app
 from .mac.backend import MacComputerBackend
 
+_APP_DELEGATE = None
+
 
 class DaemonController:
     def __init__(self):
@@ -66,7 +68,8 @@ class DaemonController:
 
 
 class HermesComputerApp(NSObject):
-    def applicationDidFinishLaunching_(self, notification) -> None:
+    @objc.python_method
+    def start(self) -> None:
         self.config = get_config()
         self.backend = MacComputerBackend(self.config)
         self.daemon = DaemonController()
@@ -85,7 +88,7 @@ class HermesComputerApp(NSObject):
     @objc.python_method
     def _build_window(self) -> None:
         self.window = NSWindow.alloc().initWithContentRect_styleMask_backing_defer_(
-            NSMakeRect(240.0, 240.0, 700.0, 420.0),
+            NSMakeRect(240.0, 240.0, 760.0, 450.0),
             NSWindowStyleMaskTitled | NSWindowStyleMaskClosable | NSWindowStyleMaskMiniaturizable | NSWindowStyleMaskResizable,
             NSBackingStoreBuffered,
             False,
@@ -93,26 +96,38 @@ class HermesComputerApp(NSObject):
         self.window.setTitle_("Hermes Computer")
         content = self.window.contentView()
 
-        self.title_label = self._label(24, 360, 652, 28, "Hermes Computer")
-        self.subtitle_label = self._label(24, 334, 652, 20, "App-backed macOS desktop control for Hermes")
-        self.status_label = self._label(24, 260, 652, 64, "Loading status...")
-        self.paths_label = self._label(24, 156, 652, 84, "")
+        self.title_label = self._label(24, 388, 700, 28, "Hermes Computer")
+        self.subtitle_label = self._label(24, 362, 700, 20, "App-backed macOS desktop control for Hermes")
+        self.status_label = self._label(24, 270, 700, 88, "Loading status...")
+        self.install_status_label = self._label(24, 236, 700, 22, "Hermes install: checking...")
+        self.action_status_label = self._label(24, 210, 700, 18, "")
+        self.paths_label = self._label(24, 112, 700, 86, "")
 
-        buttons = [
-            ("Refresh", "refresh:", 24),
-            ("Open Privacy Settings", "openPrivacy:", 150),
-            ("Install Into Hermes", "installIntoHermes:", 346),
-            ("Open Docs", "openDocs:", 520),
-        ]
-        for title, selector, x in buttons:
-            content.addSubview_(self._button(x, 98, 150, 34, title, selector))
+        self.refresh_button = self._button(24, 58, 120, 34, "Refresh", "refresh:")
+        self.accessibility_button = self._button(160, 58, 170, 34, "Open Accessibility", "openAccessibility:")
+        self.screen_recording_button = self._button(346, 58, 190, 34, "Open Screen Recording", "openScreenRecording:")
+        self.install_button = self._button(552, 58, 150, 34, "Install Into Hermes", "installIntoHermes:")
+        self.docs_button = self._button(24, 20, 120, 28, "Open Docs", "openDocs:")
+
+        for button in (
+            self.refresh_button,
+            self.accessibility_button,
+            self.screen_recording_button,
+            self.install_button,
+            self.docs_button,
+        ):
+            content.addSubview_(button)
 
         self.window.contentView().addSubview_(self.title_label)
         self.window.contentView().addSubview_(self.subtitle_label)
         self.window.contentView().addSubview_(self.status_label)
+        self.window.contentView().addSubview_(self.install_status_label)
+        self.window.contentView().addSubview_(self.action_status_label)
         self.window.contentView().addSubview_(self.paths_label)
         self.window.center()
+        self.window.setReleasedWhenClosed_(False)
         self.window.makeKeyAndOrderFront_(None)
+        self.window.orderFrontRegardless()
         NSApp.activateIgnoringOtherApps_(True)
 
     @objc.python_method
@@ -137,6 +152,7 @@ class HermesComputerApp(NSObject):
 
     def refresh_(self, sender) -> None:
         perms = self.backend.permission_status(prompt=False)
+        install_state = self._install_state()
         lines = [
             f"Daemon: running on {self.config.base_url}",
             f"Accessibility: {'granted' if perms.accessibility_trusted else 'missing'}",
@@ -147,6 +163,8 @@ class HermesComputerApp(NSObject):
             lines.append("")
             lines.append(perms.detail)
         self.status_label.setStringValue_("\n".join(lines))
+        self.install_status_label.setStringValue_(f"Hermes install: {install_state['label']}")
+        self.install_button.setTitle_("Reinstall Into Hermes" if install_state["installed"] else "Install Into Hermes")
         self.paths_label.setStringValue_(
             "\n".join(
                 [
@@ -157,25 +175,51 @@ class HermesComputerApp(NSObject):
             )
         )
 
-    def openPrivacy_(self, sender) -> None:
+    @objc.python_method
+    def _install_state(self) -> dict[str, object]:
+        plugin_ok = (self.config.plugin_target / "plugin.yaml").exists()
+        skill_ok = (self.config.skill_target / "SKILL.md").exists()
+        installed = plugin_ok and skill_ok
+        if installed:
+            label = "installed in ~/.hermes"
+        else:
+            missing = []
+            if not plugin_ok:
+                missing.append("plugin")
+            if not skill_ok:
+                missing.append("skill")
+            label = "missing " + " + ".join(missing)
+        return {"installed": installed, "label": label}
+
+    def openAccessibility_(self, sender) -> None:
         import subprocess
         subprocess.run(["open", "x-apple.systempreferences:com.apple.preference.security?Privacy_Accessibility"], check=False)
+
+    def openScreenRecording_(self, sender) -> None:
+        import subprocess
         subprocess.run(["open", "x-apple.systempreferences:com.apple.preference.security?Privacy_ScreenCapture"], check=False)
 
     def installIntoHermes_(self, sender) -> None:
+        self.action_status_label.setStringValue_("Installing plugin and skill into ~/.hermes ...")
+        self.install_button.setEnabled_(False)
         _install_plugin_tree(self.config)
         _install_skill_tree(self.config)
+        self.action_status_label.setStringValue_("Install complete.")
+        self.install_button.setEnabled_(True)
         self.refresh_(None)
 
     def openDocs_(self, sender) -> None:
-        webbrowser.open((Path(__file__).resolve().parents[1] / "README.md").as_uri())
+        webbrowser.open("https://github.com/nativ3ai/hermes-computer")
 
 
 def main() -> None:
+    global _APP_DELEGATE
     app = NSApplication.sharedApplication()
     app.setActivationPolicy_(NSApplicationActivationPolicyRegular)
     delegate = HermesComputerApp.alloc().init()
+    _APP_DELEGATE = delegate
     app.setDelegate_(delegate)
+    AppHelper.callAfter(delegate.start)
     AppHelper.runEventLoop()
 
 
