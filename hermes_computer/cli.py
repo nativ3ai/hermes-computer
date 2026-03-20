@@ -139,6 +139,8 @@ def build_app(clean: bool = typer.Option(True, help="Remove previous build/dist 
         "PyInstaller",
         "--name",
         "Hermes Computer",
+        "--osx-bundle-identifier",
+        "com.nativ3ai.hermes-computer",
         "--windowed",
         "--noconfirm",
         "--add-data",
