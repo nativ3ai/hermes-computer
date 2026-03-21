@@ -200,6 +200,9 @@ def _built_app_path() -> Path:
 
 
 def _installed_app_path() -> Path:
+    system_path = Path("/Applications") / "Hermes Computer.app"
+    if system_path.parent.exists() and os.access(system_path.parent, os.W_OK):
+        return system_path
     return Path.home() / "Applications" / "Hermes Computer.app"
 
 
