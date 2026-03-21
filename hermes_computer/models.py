@@ -91,6 +91,26 @@ class CaptureScreenRequest(BaseModel):
     display: int = 1
 
 
+class WorkflowStepRequest(BaseModel):
+    action: Literal[
+        "focus_window",
+        "open_application",
+        "capture_screen",
+        "snapshot_ui",
+        "click_element",
+        "click_at",
+        "type_text",
+        "press_keys",
+    ]
+    params: dict[str, Any] = Field(default_factory=dict)
+    pause_ms: int = 0
+
+
+class WorkflowRequest(BaseModel):
+    steps: list[WorkflowStepRequest]
+    continue_on_error: bool = False
+
+
 class OperationResult(BaseModel):
     ok: bool
     detail: str

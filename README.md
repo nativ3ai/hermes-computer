@@ -6,6 +6,8 @@ Hermes Computer is a standalone macOS-first add-on for Hermes Agent. It combines
 - a Hermes plugin that exposes computer-use tools
 - a bundled skill that teaches Hermes how to operate the desktop safely
 
+For direct tasks, Hermes Computer can also batch short deterministic action chains through `computer_run_workflow`, which cuts down the slow think-act-think loops that make desktop automation feel sluggish.
+
 The target is simple: let a user ask Hermes to operate the local computer in natural language, with deterministic UI targeting where possible instead of raw pixel guessing.
 
 ## Scope
@@ -98,6 +100,7 @@ Once installed, Hermes can use the plugin tools directly through natural languag
 Examples:
 
 - `Open Safari and focus the GitHub window.`
+- `Use Hermes Computer to open TextEdit, create a new document, click the editor, and type hello from Hermes Computer.`
 - `Snapshot the frontmost UI tree and tell me which buttons are visible.`
 - `Open TextEdit, click the body, and type the summary from the last message.`
 - `Capture the current screen and give me the saved path.`
@@ -111,6 +114,8 @@ Hermes Computer prefers deterministic control:
 3. snapshot the accessibility tree
 4. click by element match
 5. fall back to coordinates only when necessary
+
+For obvious single-app tasks, Hermes should prefer one batched workflow call instead of many separate tool calls.
 
 That is the same operational philosophy you want for reliable desktop agents.
 
@@ -142,6 +147,7 @@ A live smoke test on macOS should additionally confirm:
 2. `computer_capture_screen`
 3. `computer_open_application` on TextEdit or Safari
 4. `computer_snapshot_ui` once Accessibility is granted
+5. `computer_run_workflow` for an open-click-type flow
 
 ## Limitations
 

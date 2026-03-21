@@ -1,3 +1,3 @@
 display_name: Hermes Computer
 short_description: Control the local macOS desktop through Hermes tools.
-default_prompt: Open apps, inspect windows, click UI elements, type text, press shortcuts, and capture the screen through the hermes-computer plugin.
+default_prompt: Control the local macOS desktop through Hermes tools. Prefer computer_run_workflow for short deterministic action sequences, and avoid unnecessary verification loops.

@@ -69,3 +69,11 @@ def press_keys(args: dict, **kwargs) -> str:
 
 def open_application(args: dict, **kwargs) -> str:
     return _json(_client().open_application({"app_name": args["app_name"]}))
+
+
+def run_workflow(args: dict, **kwargs) -> str:
+    payload = {
+        "steps": args["steps"],
+        "continue_on_error": bool(args.get("continue_on_error", False)),
+    }
+    return _json(_client().run_workflow(payload))

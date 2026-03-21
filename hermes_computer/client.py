@@ -48,3 +48,6 @@ class ComputerClient:
 
     def press_keys(self, payload: dict):
         return self._request("POST", "/press-keys", json=payload)
+
+    def run_workflow(self, payload: dict):
+        return self._request("POST", "/run-workflow", json=payload)

@@ -11,12 +11,60 @@ from .tools import (
     list_windows,
     open_application,
     press_keys,
+    run_workflow,
     snapshot_ui,
     type_text,
 )
 
 
 def register(ctx) -> None:
+    ctx.register_tool(
+        name="computer_run_workflow",
+        toolset=TOOLSET,
+        schema={
+            "name": "computer_run_workflow",
+            "description": "Run a short sequence of desktop actions in one call. Prefer this for direct, deterministic tasks like opening an app, clicking a field, typing text, and pressing a shortcut.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "steps": {
+                        "type": "array",
+                        "items": {
+                            "type": "object",
+                            "properties": {
+                                "action": {
+                                    "type": "string",
+                                    "enum": [
+                                        "focus_window",
+                                        "open_application",
+                                        "capture_screen",
+                                        "snapshot_ui",
+                                        "click_element",
+                                        "click_at",
+                                        "type_text",
+                                        "press_keys",
+                                    ],
+                                },
+                                "params": {"type": "object"},
+                                "pause_ms": {"type": "integer", "minimum": 0, "maximum": 5000, "default": 0},
+                            },
+                            "required": ["action"],
+                            "additionalProperties": False,
+                        },
+                        "minItems": 1,
+                    },
+                    "continue_on_error": {"type": "boolean", "default": False},
+                },
+                "required": ["steps"],
+                "additionalProperties": False,
+            },
+        },
+        handler=run_workflow,
+        check_fn=check_computer_available,
+        is_async=False,
+        description="Run a batched desktop workflow.",
+        emoji="⚡",
+    )
     ctx.register_tool(
         name="computer_status",
         toolset=TOOLSET,

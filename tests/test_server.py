@@ -47,6 +47,9 @@ class FakeBackend:
     def press_keys(self, keys):
         return {"keys": keys}
 
+    def run_workflow(self, steps, continue_on_error=False):
+        return {"steps": steps, "continue_on_error": continue_on_error}
+
 
 def test_server_routes() -> None:
     client = TestClient(create_app(backend=FakeBackend()))
@@ -61,3 +64,12 @@ def test_server_routes() -> None:
     assert client.post('/click-at', json={'x': 10, 'y': 12}).json()['result']['x'] == 10
     assert client.post('/type-text', json={'text': 'hello'}).json()['result']['text'] == 'hello'
     assert client.post('/press-keys', json={'keys': ['command', 'l']}).json()['result']['keys'] == ['command', 'l']
+    workflow = client.post('/run-workflow', json={
+        'steps': [
+            {'action': 'open_application', 'params': {'app_name': 'TextEdit'}},
+            {'action': 'type_text', 'params': {'text': 'hello'}},
+        ]
+    }).json()
+    assert workflow['ok'] is True
+    assert workflow['results'][0]['action'] == 'open_application'
+    assert workflow['results'][1]['action'] == 'type_text'

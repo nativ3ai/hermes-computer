@@ -31,11 +31,12 @@ hermes-computer status
 
 The most reliable sequence is:
 
-1. `computer_list_windows`
-2. `computer_focus_window` or `computer_open_application`
-3. `computer_snapshot_ui`
-4. `computer_click_element`
-5. `computer_type_text` or `computer_press_keys`
+1. `computer_run_workflow` for short direct flows
+2. `computer_list_windows`
+3. `computer_focus_window` or `computer_open_application`
+4. `computer_snapshot_ui`
+5. `computer_click_element`
+6. `computer_type_text` or `computer_press_keys`
 
 Use `computer_click_at` only if accessibility targeting is not enough.
 

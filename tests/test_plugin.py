@@ -17,6 +17,7 @@ def test_registers_expected_tools() -> None:
     ctx = DummyContext()
     register(ctx)
     names = {call['name'] for call in ctx.calls}
+    assert 'computer_run_workflow' in names
     assert 'computer_status' in names
     assert 'computer_list_windows' in names
     assert 'computer_snapshot_ui' in names
